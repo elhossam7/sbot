@@ -149,3 +149,7 @@ export async function handleError(ctx: Context, error: Error) {
   console.error('Bot error:', error);
   await ctx.reply('An error occurred. Please try again later.');
 }
+
+export const handleMessage = async (ctx: Context) => {
+  // Message handling logic
+};

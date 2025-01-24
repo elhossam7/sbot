@@ -4,6 +4,7 @@ export interface Trade {
     amount: number;
     price: number;
     timestamp: Date;
+    type: 'buy' | 'sell';
 }
 
 export interface LimitOrder {

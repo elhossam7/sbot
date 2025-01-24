@@ -28,7 +28,7 @@ const getEnvVar = (name: string, defaultValue?: string): string => {
 // Configuration object
 const config: BotConfig = {
   PRIVATE_KEY: getEnvVar('PRIVATE_KEY'),
-  RPC_URL: getEnvVar('RPC_URL', 'https://api.mainnet-beta.solana.com'),
+  RPC_URL: process.env.RPC_URL || 'https://api.mainnet-beta.solana.com',
   TELEGRAM_BOT_TOKEN: getEnvVar('TELEGRAM_BOT_TOKEN'),
   SOLANA_NETWORK: getEnvVar('SOLANA_NETWORK', 'mainnet-beta') as BotConfig['SOLANA_NETWORK'],
   DEX_API_URL: getEnvVar('DEX_API_URL', 'https://quote-api.jup.ag/v6'),
@@ -37,5 +37,8 @@ const config: BotConfig = {
   DEBUG_MODE: getEnvVar('DEBUG_MODE', 'false') === 'true',
   ENCRYPTION_KEY: getEnvVar('ENCRYPTION_KEY', '5772428e-4b7b-4b3b-8b7b-4b3b8b7b4b3b')
 };
+
+export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN as string;
+export const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL as string;
 
 export default config;

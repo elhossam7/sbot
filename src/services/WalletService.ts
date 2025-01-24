@@ -1,7 +1,7 @@
 import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { encrypt, decrypt } from '../utils/encryption';
-import { prisma } from '../utils/prismaClient';
-import config from '../config';
+import { encrypt, decrypt } from '../utils/encryption.js';
+import { prisma } from '../utils/prismaClient.js';
+import config from '../config.js';
 
 export class WalletService {
     private connection: Connection;

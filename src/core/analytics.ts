@@ -1,11 +1,17 @@
-export function calculatePNL(trades) {
-    let totalProfit = 0;
-    trades.forEach(trade => {
-        totalProfit += trade.profit; // Assuming trade object has a profit property
+import { Trade } from '../types/Trade.js';
+
+export function calculatePNL(trades: Trade[]): number {
+    let pnl = 0;
+    trades.forEach((trade: Trade) => {
+        if (trade.side === 'sell') {
+            pnl += trade.price * trade.size;
+        } else {
+            pnl -= trade.price * trade.size;
+        }
     });
-    return totalProfit;
+    return pnl;
 }
 
-export function logTrade(trade) {
-    console.log(`Trade executed: ${trade.id}, Profit: ${trade.profit}, Timestamp: ${new Date().toISOString()}`);
+export function logTrade(trade: Trade): void {
+    console.log(`New trade: ${trade.side} ${trade.size} @ ${trade.price}`);
 }

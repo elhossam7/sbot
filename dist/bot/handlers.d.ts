@@ -1,0 +1,10 @@
+import { Context } from 'telegraf';
+import { Markup } from 'telegraf';
+export declare const mainMenuKeyboard: Markup.Markup<import("telegraf/types").ReplyKeyboardMarkup>;
+export declare function handleBalanceCommand(ctx: Context): Promise<void>;
+export declare const handleBuyCommand: (ctx: any) => Promise<void>;
+export declare function handleSellCommand(ctx: any): Promise<void>;
+export declare function handleStartCommand(ctx: Context): Promise<void>;
+export declare const handleStart: (ctx: any) => Promise<void>;
+export declare function handleError(ctx: Context, error: Error): Promise<void>;
+export declare const handleMessage: (ctx: Context) => Promise<void>;
