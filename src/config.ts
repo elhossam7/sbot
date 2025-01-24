@@ -13,6 +13,7 @@ interface BotConfig {
   MAX_RETRIES: number;
   TIMEOUT_MS: number;
   DEBUG_MODE: boolean;
+  ENCRYPTION_KEY: string;
 }
 
 // Environment validation with default values
@@ -33,7 +34,8 @@ const config: BotConfig = {
   DEX_API_URL: getEnvVar('DEX_API_URL', 'https://quote-api.jup.ag/v6'),
   MAX_RETRIES: parseInt(getEnvVar('MAX_RETRIES', '3'), 10),
   TIMEOUT_MS: parseInt(getEnvVar('TIMEOUT_MS', '30000'), 10),
-  DEBUG_MODE: getEnvVar('DEBUG_MODE', 'false') === 'true'
+  DEBUG_MODE: getEnvVar('DEBUG_MODE', 'false') === 'true',
+  ENCRYPTION_KEY: getEnvVar('ENCRYPTION_KEY', '5772428e-4b7b-4b3b-8b7b-4b3b8b7b4b3b')
 };
 
 export default config;

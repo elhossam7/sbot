@@ -1,58 +1,54 @@
 import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { encrypt, decrypt } from '../utils/encryption';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/prismaClient';
 import config from '../config';
-
-const prisma = new PrismaClient();
-const connection = new Connection(config.RPC_URL);
 
 export class WalletService {
     private connection: Connection;
 
-    constructor(endpoint: string) {
+    constructor(endpoint: string = config.RPC_URL) {
         this.connection = new Connection(endpoint);
     }
 
     async generateNewWallet(userId: string): Promise<string> {
-        // Generate new keypair
-        const wallet = Keypair.generate();
-        
-        // Encrypt private key before storage
-        const encryptedPrivateKey = encrypt(Buffer.from(wallet.secretKey).toString('hex'));
-        
-        // Store wallet info in database
+        const keypair = Keypair.generate();
+        const encryptedPrivateKey = encrypt(
+            Buffer.from(keypair.secretKey).toString('hex')
+        );
+
         try {
-            await prisma.wallet.create({
+            const wallet = await prisma.userWallet.create({
                 data: {
                     userId,
-                    publicKey: wallet.publicKey.toString(),
+                    publicKey: keypair.publicKey.toString(),
                     encryptedPrivateKey,
-                    createdAt: new Date(),
                 }
             });
-            return wallet.publicKey.toString();
+            
+            return wallet.publicKey;
         } catch (error) {
-            console.error('Error creating wallet in database:', error);
+            console.error('Error creating wallet:', error);
             throw new Error('Failed to create wallet');
         }
     }
 
-    async getWallet(userId: string): Promise<{ publicKey: string; privateKey: string } | null> {
+    async getWallet(userId: string): Promise<{ 
+        publicKey: string; 
+        privateKey: string 
+    } | null> {
         try {
-            const walletInfo = await prisma.wallet.findUnique({
+            const wallet = await prisma.userWallet.findUnique({
                 where: { userId }
             });
 
-            if (!walletInfo) {
-                return null;
-            }
+            if (!wallet) return null;
 
             return {
-                publicKey: walletInfo.publicKey,
-                privateKey: decrypt(walletInfo.encryptedPrivateKey)
+                publicKey: wallet.publicKey,
+                privateKey: decrypt(wallet.encryptedPrivateKey)
             };
         } catch (error) {
-            console.error(`Failed to retrieve wallet for userId ${userId}:`, error);
+            console.error('Error retrieving wallet:', error);
             return null;
         }
     }
@@ -63,40 +59,78 @@ export class WalletService {
                 new PublicKey(publicKey),
                 LAMPORTS_PER_SOL
             );
+            
             await this.connection.confirmTransaction(airdropSignature);
             return true;
         } catch (error) {
-            console.error(`Failed to initialize wallet for publicKey ${publicKey}:`, error);
+            console.error('Airdrop failed:', error);
             return false;
         }
     }
 
-    async getWalletInfo(address: string) {
-        const walletInfo = await prisma.wallet.findUnique({
-            where: {
-                address: address,
-            },
+    async getWalletInfo(publicKey: string) {
+        const wallet = await prisma.userWallet.findUnique({
+            where: { publicKey }
         });
 
-        if (!walletInfo) {
-            throw new Error('Wallet not found');
-        }
+        if (!wallet) throw new Error('Wallet not found');
 
-        // Get on-chain balance
-        const publicKey = new PublicKey(address);
-        const balance = await connection.getBalance(publicKey);
+        const balance = await this.connection.getBalance(
+            new PublicKey(publicKey)
+        );
 
         return {
-            ...walletInfo,
-            balance: balance / 1e9, // Convert lamports to SOL
+            publicKey: wallet.publicKey,
+            balance: balance / LAMPORTS_PER_SOL,
+            createdAt: wallet.createdAt
         };
     }
 
-    async createWallet(userId: string, address: string, label?: string) {
-        return await prisma.wallet.create({
+    async createWallet(userId: string, label?: string) {
+        const keypair = Keypair.generate();
+        const encryptedPrivateKey = encrypt(
+            Buffer.from(keypair.secretKey).toString('hex')
+        );
+
+        return prisma.wallet.create({
             data: {
                 userId,
+                address: keypair.publicKey.toString(),
+                label,
+            }
+        });
+    }
+
+    async findWalletByAddress(address: string) {
+        return prisma.wallet.findUnique({
+            where: {
                 address,
+            },
+        });
+    }
+
+    async findWalletsByUserId(userId: string) {
+        return prisma.wallet.findMany({
+            where: {
+                userId,
+            },
+        });
+    }
+
+    async deleteWallet(address: string) {
+        return prisma.wallet.delete({
+            where: {
+                address,
+            },
+        });
+    }
+
+    async updateWalletLabel(address: string, label: string) {
+        return prisma.wallet.update({
+            where: {
+                address,
+            },
+            data: {
                 label,
             },
         });
