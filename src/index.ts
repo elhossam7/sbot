@@ -2,7 +2,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { config as dotenvConfig } from 'dotenv';
 import { Telegraf, Context } from 'telegraf';
-import { Connection } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { registerCommands } from './bot/commands.js';
 import { handleBalanceCommand, handleBuyCommand, handleSellCommand, handleError, handleStart } from './bot/handlers.js';
 import { PrismaClient } from '@prisma/client';
@@ -19,6 +19,8 @@ dotenvConfig({ path: `${__dirname}/../.env` });
 const bot = new Telegraf<Context>(process.env.TELEGRAM_BOT_TOKEN!);
 const prisma = new PrismaClient();
 
+const userWallets: Map<string, Keypair> = new Map();
+
 function createConnection(): Connection {
   if (!config.RPC_URL.startsWith('http')) {
     throw new Error(`Invalid RPC URL: ${config.RPC_URL}`);
@@ -30,6 +32,18 @@ function createConnection(): Connection {
 }
 
 const connection = createConnection();
+
+async function getUserWallet(userId: string): Promise<{ publicKey: PublicKey; balance: number }> {
+  let wallet = userWallets.get(userId);
+  if (!wallet) {
+    wallet = Keypair.generate();
+    userWallets.set(userId, wallet);
+  }
+
+  const balanceLamports = await connection.getBalance(wallet.publicKey);
+  const balance = balanceLamports / 1e9; // Convert lamports to SOL
+  return { publicKey: wallet.publicKey, balance };
+}
 
 // Register commands and handlers
 registerCommands(bot);
@@ -82,4 +96,4 @@ startBot().catch((error) => {
   process.exit(1);
 });
 
-export { bot, connection, prisma };
+export { bot, connection, prisma, getUserWallet, userWallets };

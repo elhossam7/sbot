@@ -3,6 +3,7 @@ import { Message } from 'telegraf/types';
 import { Connection } from '@solana/web3.js';
 import { executeTrade, setLimitOrder } from '../core/trading.js';
 import { mainMenuKeyboard, handleStart } from './handlers.js';
+import { getUserWallet } from '../index.js';
 
 export const registerCommands = (bot: Telegraf<Context>) => {
   // Start command
@@ -90,10 +91,19 @@ export const registerCommands = (bot: Telegraf<Context>) => {
   // Menu button handlers
   bot.hears('💰 Balance', async (ctx: Context) => {
     try {
-      // Implement balance check logic
-      await ctx.reply('Fetching your balance...');
+      const userId = ctx.from?.id.toString();
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
+
+      const { publicKey, balance } = await getUserWallet(userId);
+      await ctx.reply(
+        `💳 Your Wallet: ${publicKey.toBase58()}\n` +
+        `💰 Balance: ${balance.toFixed(4)} SOL`
+      );
     } catch (error) {
-      await ctx.reply('Error fetching balance');
+      console.error('Balance check error:', error);
+      await ctx.reply('Error fetching your wallet information. Please try again.');
     }
   });
 
