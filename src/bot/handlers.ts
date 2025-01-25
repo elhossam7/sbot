@@ -5,6 +5,7 @@ import config from '../config.js';
 import { getUserBalance, getTokenPrice, executeBuyOrder, updateUserPortfolio, getUserTokenBalance } from '../services/trading.js';
 import { executeSellOrder } from '../services/trading.js';
 import { Markup } from 'telegraf';
+import { getUserWallet } from '../index.js';
 
 // Types
 interface TradeParams {
@@ -23,16 +24,21 @@ export const mainMenuKeyboard = Markup.keyboard([
 ]).resize();
 
 // Balance handler
-export async function handleBalanceCommand(ctx: Context) {
+export const handleBalanceCommand = async (ctx: Context) => {
   try {
-    const connection = new Connection(config.RPC_URL);
-    const wallet = new PublicKey(config.PRIVATE_KEY);
-    const balance = await connection.getBalance(wallet);
-    
-    await ctx.reply(`Current balance: ${balance / LAMPORTS_PER_SOL} SOL`);
+    const userId = ctx.from?.id.toString();
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    const { publicKey, balance } = await getUserWallet(userId);
+    await ctx.reply(
+      `💳 Your Wallet: ${publicKey.toBase58()}\n` +
+      `💰 Balance: ${balance.toFixed(4)} SOL`
+    );
   } catch (error) {
-    await ctx.reply('Error fetching balance. Please try again.');
-    console.error('Balance error:', error);
+    console.error('Balance check error:', error);
+    await ctx.reply('Error fetching your wallet information. Please try again.');
   }
 }
 
@@ -124,24 +130,26 @@ export async function handleStartCommand(ctx: Context) {
 }
 
 // Create command handlers for each menu option
-export const handleStart = async (ctx: any): Promise<void> => {
-  const welcomeMessage = `
-Welcome to Solana Trading Bot! 🚀
+export const handleStart = async (ctx: Context) => {
+  try {
+    const userId = ctx.from?.id.toString();
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
 
-Your Wallet: ${ctx.wallet?.address || 'Not connected'}
-Balance: ${ctx.wallet?.balance || '0'} SOL
-
-🔔 Join our community:
-📱 Telegram: @SolanaTradingGroup
-🐦 Twitter: @SolanaTrading
-
-⚠️ Warning: Beware of scams and fake airdrops!
-`;
-
-  await ctx.reply(welcomeMessage, {
-    parse_mode: 'HTML',
-    ...mainMenuKeyboard
-  });
+    const { publicKey, balance } = await getUserWallet(userId);
+    
+    await ctx.reply(
+      `Welcome to Solana Trading Bot! 🚀\n\n` +
+      `💳 Your Wallet: ${publicKey.toBase58()}\n` +
+      `💰 Balance: ${balance.toFixed(4)} SOL\n\n` +
+      `Use /help to see available commands.`,
+      { reply_markup: mainMenuKeyboard.reply_markup }
+    );
+  } catch (error) {
+    console.error('Start command error:', error);
+    await ctx.reply('Error initializing your wallet. Please try again.');
+  }
 };
 
 // Error handler

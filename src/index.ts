@@ -84,6 +84,15 @@ const startBot = async () => {
     console.log('Starting Solana Trading Bot...');
     await bot.launch();
     console.log('Bot successfully started!');
+
+    // Check wallet connection
+    const testUserId = 'testUser';
+    const { publicKey } = await getUserWallet(testUserId);
+    if (!publicKey) {
+      console.error("Your Wallet: Not connected");
+    } else {
+      console.log("Your Wallet:", publicKey.toBase58());
+    }
   } catch (error) {
     console.error('Failed to start bot:', error);
     process.exit(1);
