@@ -158,6 +158,46 @@ export async function handleError(ctx: Context, error: Error) {
   await ctx.reply('An error occurred. Please try again later.');
 }
 
+/**
+ * Handles incoming messages from the Telegram bot context.
+ * Routes different command messages to their respective handlers based on the text content.
+ * 
+ * @param ctx - The Telegram bot context containing message information
+ * @returns A Promise that resolves when the message has been handled
+ * 
+ * Commands handled:
+ * - 💰 Balance: Shows wallet balance
+ * - 📈 Buy: Prompts for token purchase
+ * - 📉 Sell: Prompts for token sale
+ * - ❓ Help: Shows help information
+ * - 🔄 Refresh: Refreshes the bot state
+ * 
+ * @throws Will throw an error if message handling fails
+ */
 export const handleMessage = async (ctx: Context) => {
   // Message handling logic
+if (!ctx.message || !('text' in ctx.message)) return;
+
+const message = ctx.message as Message.TextMessage;
+const text = message.text;
+
+switch (text) {
+  case '💰 Balance':
+    await handleBalanceCommand(ctx);
+    break;
+  case '📈 Buy':
+    await ctx.reply('Please enter the token address and amount to buy:\n/buy <token_address> <amount>');
+    break;
+  case '📉 Sell':
+    await ctx.reply('Please enter the token address and amount to sell:\n/sell <token_address> <amount>');
+    break;
+  case '❓ Help':
+    await handleStartCommand(ctx);
+    break;
+  case '🔄 Refresh':
+    await handleStart(ctx);
+    break;
+  default:
+    await ctx.reply('Please use the menu buttons or /help for available commands.');
+}
 };
