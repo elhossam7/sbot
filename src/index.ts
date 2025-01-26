@@ -33,7 +33,12 @@ function createConnection(): Connection {
 
 const connection = createConnection();
 
-async function getUserWallet(userId: string): Promise<{ publicKey: PublicKey; balance: number }> {
+interface UserWallet {
+  publicKey: PublicKey;
+  balance: number;
+}
+
+export const getUserWallet = async (userId: string): Promise<UserWallet> => {
   let wallet = userWallets.get(userId);
   if (!wallet) {
     wallet = Keypair.generate();
@@ -43,7 +48,7 @@ async function getUserWallet(userId: string): Promise<{ publicKey: PublicKey; ba
   const balanceLamports = await connection.getBalance(wallet.publicKey);
   const balance = balanceLamports / 1e9; // Convert lamports to SOL
   return { publicKey: wallet.publicKey, balance };
-}
+};
 
 // Register commands and handlers
 registerCommands(bot);
@@ -105,4 +110,4 @@ startBot().catch((error) => {
   process.exit(1);
 });
 
-export { bot, connection, prisma, getUserWallet, userWallets };
+export { bot, connection, prisma, userWallets };

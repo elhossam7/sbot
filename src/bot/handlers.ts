@@ -1,6 +1,6 @@
 import { Context } from 'telegraf';
 import type { Message } from 'telegraf/types';
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Connection, PublicKey, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
 import config from '../config.js';
 import { getUserBalance, getTokenPrice, executeBuyOrder, updateUserPortfolio, getUserTokenBalance } from '../services/trading.js';
 import { executeSellOrder } from '../services/trading.js';
@@ -32,6 +32,7 @@ export const handleBalanceCommand = async (ctx: Context) => {
     }
 
     const { publicKey, balance } = await getUserWallet(userId);
+
     await ctx.reply(
       `💳 Your Wallet: ${publicKey.toBase58()}\n` +
       `💰 Balance: ${balance.toFixed(4)} SOL`
@@ -138,7 +139,7 @@ export const handleStart = async (ctx: Context) => {
     }
 
     const { publicKey, balance } = await getUserWallet(userId);
-    
+
     await ctx.reply(
       `Welcome to Solana Trading Bot! 🚀\n\n` +
       `💳 Your Wallet: ${publicKey.toBase58()}\n` +

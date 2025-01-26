@@ -1,41 +1,81 @@
 import { Telegraf, Context } from 'telegraf';
 import { Message } from 'telegraf/types';
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { executeTrade, setLimitOrder } from '../core/trading.js';
 import { mainMenuKeyboard, handleStart } from './handlers.js';
 import { getUserWallet } from '../index.js';
+
+const validateTokenAddress = (address: string): boolean => {
+  try {
+    new PublicKey(address);
+    return true;
+  } catch {
+    return false;
+  }
+};
+import { calculateSwap, simulateSwap, executeBuy } from '../services/swap.js';
 
 export const registerCommands = (bot: Telegraf<Context>) => {
   // Start command
   bot.command('start', handleStart);
 
-  // Trade commands with amount parameter
+  // Buy command
   bot.command('buy', async (ctx: Context) => {
     if (!ctx.message || !('text' in ctx.message)) {
       return ctx.reply('Invalid message format');
     }
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-      return ctx.reply('Usage: /buy <amount> <token>');
+    const [_, tokenAddress, amount] = ctx.message.text.split(' ');
+    const numericAmount = parseFloat(amount);
+
+    if (!tokenAddress || isNaN(numericAmount)) {
+      return ctx.reply('Invalid format. Use: /buy <TOKEN_ADDRESS> <AMOUNT>');
     }
-    const amount = args[1];
-    const token = args[2];
 
     try {
-      const result = await executeTrade({ 
-        id: Date.now().toString(), 
-        amount: Number(amount), 
-        token, 
-        price: 0, 
-        type: 'buy',
-        timestamp: new Date()
+      const userId = ctx.from?.id.toString();
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
+
+      const { publicKey } = await getUserWallet(userId);
+
+      // Validate token address
+      if (!validateTokenAddress(tokenAddress)) {
+        return ctx.reply('Invalid token address.');
+      }
+
+      // Fetch swap route and simulate transaction
+      const swapDetails = await calculateSwap('So11111111111111111111111111111111111111112', tokenAddress, numericAmount);
+      const simulation = await simulateSwap(swapDetails.transaction);
+
+      if (!simulation.success) {
+        return ctx.reply('Transaction simulation failed.');
+      }
+
+      // Confirm swap details with user
+      await ctx.reply(
+        `Swap Details:\n` +
+        `Token: ${tokenAddress}\n` +
+        `Amount: ${numericAmount}\n` +
+        `Price Impact: ${swapDetails.priceImpactPct}%\n` +
+        `Confirm execution? (yes/no)`
+      );
+
+      // Wait for user confirmation
+      bot.on('text', async (confirmationCtx) => {
+        if (confirmationCtx.message.text.toLowerCase() === 'yes') {
+          const signature = await executeBuy(userId, tokenAddress, numericAmount);
+          await ctx.reply(`✅ Buy order executed!\n📄 TX: https://solscan.io/tx/${signature}`);
+        } else {
+          await ctx.reply('Buy order cancelled.');
+        }
       });
-      await ctx.reply(`Buy order executed: ${result}`);
     } catch (error) {
+      console.error('Buy command error:', error);
       await ctx.reply(`Error executing buy order: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
-  
+
   bot.command('sell', async (ctx: Context) => {
     if (!ctx.message || !('text' in ctx.message)) {
       return ctx.reply('Invalid message format');
