@@ -1,9 +1,12 @@
 // src/index.ts
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import dotenv2 from "dotenv";
+import { config as dotenvConfig } from "dotenv";
 import { Telegraf } from "telegraf";
-import { Connection as Connection3 } from "@solana/web3.js";
+import { Connection as Connection4, Keypair as Keypair2 } from "@solana/web3.js";
+
+// src/bot/commands.ts
+import { PublicKey as PublicKey3 } from "@solana/web3.js";
 
 // src/core/trading.ts
 function executeTrade(trade) {
@@ -28,7 +31,7 @@ function setLimitOrder(order) {
 }
 
 // src/bot/handlers.ts
-import { Connection as Connection2, PublicKey as PublicKey2, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Connection as Connection2 } from "@solana/web3.js";
 
 // src/config.ts
 import dotenv from "dotenv";
@@ -42,7 +45,7 @@ var getEnvVar = (name, defaultValue) => {
 };
 var config = {
   PRIVATE_KEY: getEnvVar("PRIVATE_KEY"),
-  RPC_URL: getEnvVar("RPC_URL", "https://api.mainnet-beta.solana.com"),
+  RPC_URL: process.env.RPC_URL || "https://api.mainnet-beta.solana.com",
   TELEGRAM_BOT_TOKEN: getEnvVar("TELEGRAM_BOT_TOKEN"),
   SOLANA_NETWORK: getEnvVar("SOLANA_NETWORK", "mainnet-beta"),
   DEX_API_URL: getEnvVar("DEX_API_URL", "https://quote-api.jup.ag/v6"),
@@ -59,7 +62,7 @@ var config_default = config;
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { parsePriceData } from "@pythnetwork/client";
-var db = {
+var db2 = {
   // Mocked db object to prevent errors
   portfolios: {
     upsert: async (args) => {
@@ -198,12 +201,12 @@ async function updateUserPortfolio(userId, params) {
       orderId: params.orderId,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     };
-    await db.portfolios.upsert({
+    await db2.portfolios.upsert({
       where: { userId, token: params.token },
       update: {
         quantity: { increment: params.amount },
         lastUpdated: /* @__PURE__ */ new Date(),
-        averagePrice: db.raw(`
+        averagePrice: db2.raw(`
           (averagePrice * (SELECT quantity FROM portfolios WHERE userId = '${userId}' AND token = '${params.token}') + ${params.price} * ${params.amount}) 
           / ((SELECT quantity FROM portfolios WHERE userId = '${userId}' AND token = '${params.token}') + ${params.amount})
         `)
@@ -216,7 +219,7 @@ async function updateUserPortfolio(userId, params) {
         lastUpdated: /* @__PURE__ */ new Date()
       }
     });
-    await db.transactions.create({
+    await db2.transactions.create({
       data: portfolioUpdate
     });
     console.log(`Updating portfolio for user ${userId} with data:`, params);
@@ -235,17 +238,22 @@ var mainMenuKeyboard = Markup.keyboard([
   ["\u{1F517} Referrals", "\u{1F440} Watchlist", "\u{1F4B3} Withdraw"],
   ["\u2699\uFE0F Settings", "\u2753 Help", "\u{1F504} Refresh"]
 ]).resize();
-async function handleBalanceCommand(ctx) {
+var handleBalanceCommand = async (ctx) => {
   try {
-    const connection2 = new Connection2(config_default.RPC_URL);
-    const wallet = new PublicKey2(config_default.PRIVATE_KEY);
-    const balance = await connection2.getBalance(wallet);
-    await ctx.reply(`Current balance: ${balance / LAMPORTS_PER_SOL} SOL`);
+    const userId = ctx.from?.id.toString();
+    if (!userId) {
+      throw new Error("User ID not found");
+    }
+    const { publicKey, balance } = await getUserWallet(userId);
+    await ctx.reply(
+      `\u{1F4B3} Your Wallet: ${publicKey.toBase58()}
+\u{1F4B0} Balance: ${balance.toFixed(4)} SOL`
+    );
   } catch (error) {
-    await ctx.reply("Error fetching balance. Please try again.");
-    console.error("Balance error:", error);
+    console.error("Balance check error:", error);
+    await ctx.reply("Error fetching your wallet information. Please try again.");
   }
-}
+};
 var handleBuyCommand = async (ctx) => {
   const userId = ctx.from.id;
   const [amount, token] = ctx.message.text.split(" ").slice(1);
@@ -295,53 +303,168 @@ async function handleSellCommand(ctx) {
   }
 }
 var handleStart = async (ctx) => {
-  const welcomeMessage = `
-Welcome to Solana Trading Bot! \u{1F680}
+  try {
+    const userId = ctx.from?.id.toString();
+    if (!userId) {
+      throw new Error("User ID not found");
+    }
+    const { publicKey, balance } = await getUserWallet(userId);
+    await ctx.reply(
+      `Welcome to Solana Trading Bot! \u{1F680}
 
-Your Wallet: ${ctx.wallet?.address || "Not connected"}
-Balance: ${ctx.wallet?.balance || "0"} SOL
+\u{1F4B3} Your Wallet: ${publicKey.toBase58()}
+\u{1F4B0} Balance: ${balance.toFixed(4)} SOL
 
-\u{1F514} Join our community:
-\u{1F4F1} Telegram: @SolanaTradingGroup
-\u{1F426} Twitter: @SolanaTrading
-
-\u26A0\uFE0F Warning: Beware of scams and fake airdrops!
-`;
-  await ctx.reply(welcomeMessage, {
-    parse_mode: "HTML",
-    ...mainMenuKeyboard
-  });
+Use /help to see available commands.`,
+      { reply_markup: mainMenuKeyboard.reply_markup }
+    );
+  } catch (error) {
+    console.error("Start command error:", error);
+    await ctx.reply("Error initializing your wallet. Please try again.");
+  }
 };
 async function handleError(ctx, error) {
   console.error("Bot error:", error);
   await ctx.reply("An error occurred. Please try again later.");
 }
 
+// src/services/utils.js
+var getSwapRate = async () => {
+  try {
+    const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
+    const data = await response.json();
+    return data.solana.usd;
+  } catch (error) {
+    console.error("Error fetching swap rate:", error);
+    throw error;
+  }
+};
+var getUserBalance2 = async (userId) => {
+  try {
+    const balance = await db.collection("users").doc(userId).get();
+    return balance.data()?.balance || 0;
+  } catch (error) {
+    console.error("Error getting user balance:", error);
+    throw error;
+  }
+};
+var updateUserBalance = async (userId, newBalance) => {
+  try {
+    await db.collection("users").doc(userId).update({
+      balance: newBalance
+    });
+  } catch (error) {
+    console.error("Error updating user balance:", error);
+    throw error;
+  }
+};
+
+// src/services/swap.js
+var calculateSwap = async () => {
+  const rate = await getSwapRate();
+  const balance = await getUserBalance2();
+  const maxSwapAmount = balance * rate;
+  return {
+    rate,
+    maxSwapAmount,
+    currentBalance: balance
+  };
+};
+var simulateSwap = async () => {
+  const swapDetails = await calculateSwap();
+  const simulatedResult = {
+    estimatedGas: 5e4,
+    expectedRate: swapDetails.rate,
+    maxAmount: swapDetails.maxSwapAmount,
+    priceImpact: 5e-3,
+    // 0.5% price impact
+    minimumReceived: swapDetails.maxSwapAmount * 0.995
+    // Account for slippage
+  };
+  return simulatedResult;
+};
+var executeBuy = async (userId, tokenAddress, amount) => {
+  if (!userId || !tokenAddress || !amount) {
+    throw new Error("Missing required parameters");
+  }
+  const simulation = await simulateSwap();
+  if (amount > simulation.maxAmount) {
+    throw new Error("Amount exceeds maximum allowed");
+  }
+  const balance = await getUserBalance2(userId);
+  if (balance < amount) {
+    throw new Error("Insufficient balance");
+  }
+  const transaction = {
+    userId,
+    tokenAddress,
+    amount,
+    rate: simulation.expectedRate,
+    timestamp: Date.now()
+  };
+  await updateUserBalance(userId, balance - amount);
+  return transaction;
+};
+
 // src/bot/commands.ts
+var validateTokenAddress = (address) => {
+  try {
+    new PublicKey3(address);
+    return true;
+  } catch {
+    return false;
+  }
+};
 var registerCommands = (bot2) => {
   bot2.command("start", handleStart);
   bot2.command("buy", async (ctx) => {
-    const args = ctx.message.text.split(" ");
-    if (args.length < 2) {
-      return ctx.reply("Usage: /buy <amount> <token>");
+    if (!ctx.message || !("text" in ctx.message)) {
+      return ctx.reply("Invalid message format");
     }
-    const amount = args[1];
-    const token = args[2];
+    const [_, tokenAddress, amount] = ctx.message.text.split(" ");
+    const numericAmount = parseFloat(amount);
+    if (!tokenAddress || isNaN(numericAmount)) {
+      return ctx.reply("Invalid format. Use: /buy <TOKEN_ADDRESS> <AMOUNT>");
+    }
     try {
-      const result = await executeTrade({
-        id: Date.now().toString(),
-        amount: Number(amount),
-        token,
-        price: 0,
-        type: "buy",
-        timestamp: /* @__PURE__ */ new Date()
+      const userId = ctx.from?.id.toString();
+      if (!userId) {
+        throw new Error("User ID not found");
+      }
+      const { publicKey } = await getUserWallet(userId);
+      if (!validateTokenAddress(tokenAddress)) {
+        return ctx.reply("Invalid token address.");
+      }
+      const swapDetails = await calculateSwap("So11111111111111111111111111111111111111112", tokenAddress, numericAmount);
+      const simulation = await simulateSwap(swapDetails.transaction);
+      if (!simulation.success) {
+        return ctx.reply("Transaction simulation failed.");
+      }
+      await ctx.reply(
+        `Swap Details:
+Token: ${tokenAddress}
+Amount: ${numericAmount}
+Price Impact: ${swapDetails.priceImpactPct}%
+Confirm execution? (yes/no)`
+      );
+      bot2.on("text", async (confirmationCtx) => {
+        if (confirmationCtx.message.text.toLowerCase() === "yes") {
+          const signature = await executeBuy(userId, tokenAddress, numericAmount);
+          await ctx.reply(`\u2705 Buy order executed!
+\u{1F4C4} TX: https://solscan.io/tx/${signature}`);
+        } else {
+          await ctx.reply("Buy order cancelled.");
+        }
       });
-      await ctx.reply(`Buy order executed: ${result}`);
     } catch (error) {
+      console.error("Buy command error:", error);
       await ctx.reply(`Error executing buy order: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   });
   bot2.command("sell", async (ctx) => {
+    if (!ctx.message || !("text" in ctx.message)) {
+      return ctx.reply("Invalid message format");
+    }
     const args = ctx.message.text.split(" ");
     if (args.length < 2) {
       return ctx.reply("Usage: /sell <amount> <token>");
@@ -363,6 +486,9 @@ var registerCommands = (bot2) => {
     }
   });
   bot2.command("limit", async (ctx) => {
+    if (!ctx.message || !("text" in ctx.message)) {
+      return ctx.reply("Invalid message format");
+    }
     const args = ctx.message.text.split(" ");
     if (args.length < 3) {
       return ctx.reply("Usage: /limit <amount> <price>");
@@ -384,9 +510,18 @@ var registerCommands = (bot2) => {
   });
   bot2.hears("\u{1F4B0} Balance", async (ctx) => {
     try {
-      await ctx.reply("Fetching your balance...");
+      const userId = ctx.from?.id.toString();
+      if (!userId) {
+        throw new Error("User ID not found");
+      }
+      const { publicKey, balance } = await getUserWallet(userId);
+      await ctx.reply(
+        `\u{1F4B3} Your Wallet: ${publicKey.toBase58()}
+\u{1F4B0} Balance: ${balance.toFixed(4)} SOL`
+      );
     } catch (error) {
-      await ctx.reply("Error fetching balance");
+      console.error("Balance check error:", error);
+      await ctx.reply("Error fetching your wallet information. Please try again.");
     }
   });
   bot2.hears("\u{1F4C8} Buy", async (ctx) => {
@@ -432,11 +567,33 @@ Available commands:
 };
 
 // src/index.ts
+import { PrismaClient } from "@prisma/client";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = dirname(__filename);
-dotenv2.config({ path: `${__dirname}/../.env` });
-var bot = new Telegraf(config_default.TELEGRAM_BOT_TOKEN);
-var connection = new Connection3(config_default.RPC_URL);
+dotenvConfig({ path: `${__dirname}/../.env` });
+var bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+var prisma = new PrismaClient();
+var userWallets = /* @__PURE__ */ new Map();
+function createConnection() {
+  if (!config_default.RPC_URL.startsWith("http")) {
+    throw new Error(`Invalid RPC URL: ${config_default.RPC_URL}`);
+  }
+  return new Connection4(config_default.RPC_URL, {
+    commitment: "confirmed",
+    httpHeaders: { "Content-Type": "application/json" }
+  });
+}
+var connection = createConnection();
+var getUserWallet = async (userId) => {
+  let wallet = userWallets.get(userId);
+  if (!wallet) {
+    wallet = Keypair2.generate();
+    userWallets.set(userId, wallet);
+  }
+  const balanceLamports = await connection.getBalance(wallet.publicKey);
+  const balance = balanceLamports / 1e9;
+  return { publicKey: wallet.publicKey, balance };
+};
 registerCommands(bot);
 bot.command("balance", handleBalanceCommand);
 bot.command("buy", handleBuyCommand);
@@ -465,6 +622,13 @@ var startBot = async () => {
     console.log("Starting Solana Trading Bot...");
     await bot.launch();
     console.log("Bot successfully started!");
+    const testUserId = "testUser";
+    const { publicKey } = await getUserWallet(testUserId);
+    if (!publicKey) {
+      console.error("Your Wallet: Not connected");
+    } else {
+      console.log("Your Wallet:", publicKey.toBase58());
+    }
   } catch (error) {
     console.error("Failed to start bot:", error);
     process.exit(1);
@@ -476,5 +640,8 @@ startBot().catch((error) => {
 });
 export {
   bot,
-  connection
+  connection,
+  getUserWallet,
+  prisma,
+  userWallets
 };

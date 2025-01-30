@@ -5,8 +5,9 @@ import { Telegraf, Context } from 'telegraf';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { registerCommands } from './bot/commands.js';
 import { handleBalanceCommand, handleBuyCommand, handleSellCommand, handleError, handleStart } from './bot/handlers.js';
-import { PrismaClient } from '@prisma/client';
+import prisma from './db/client.js';
 import config from './config.js';
+import { Client } from 'rpc-websockets';
 
 // Initialize ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +18,6 @@ dotenvConfig({ path: `${__dirname}/../.env` });
 
 // Initialize bot and connection
 const bot = new Telegraf<Context>(process.env.TELEGRAM_BOT_TOKEN!);
-const prisma = new PrismaClient();
 
 const userWallets: Map<string, Keypair> = new Map();
 
@@ -104,10 +104,23 @@ const startBot = async () => {
   }
 };
 
-// Execute main function
-startBot().catch((error) => {
-  console.error('Startup error:', error);
-  process.exit(1);
-});
+async function main() {
+  try {
+    // Test database connection
+    await prisma.$connect();
+    console.log('Database connected successfully');
+    
+    // Execute main function
+    await startBot();
+    
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main();
 
 export { bot, connection, prisma, userWallets };

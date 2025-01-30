@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "dev": "nodemon --exec tsx src/index.ts",
     "build": "tsup src/index.ts --format esm",
-    "test": "cross-env NODE_OPTIONS='--import tsx' vitest"
+    "test": "cross-env NODE_OPTIONS='--import tsx' vitest",
+    "rebuild": "npm install && npm run build"
   },
   "dependencies": {
     "@jup-ag/core": "^4.0.0-beta.21",
